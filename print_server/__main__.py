@@ -7,13 +7,20 @@ from aiohttp import ClientSession
 from aiohttp.client_exceptions import ServerDisconnectedError, ClientConnectorError
 from concurrent.futures import ThreadPoolExecutor
 import logging
+from dotenv import load_dotenv
+from pathlib import Path
+from os import getenv
 from pprint import pprint
 
 
 log = logging.getLogger(__name__)
 
+BASE_DIR = Path(__file__).parent
 
-API_URL = "http://localhost:8000"
+load_dotenv()
+
+API_URL = TELEGRAM_API_TOKEN = getenv("API_URL", default="http://localhost:8000")
+
 UPDATE_STATUS_URL = "http://example.com/api/update_status"  # URL для обновления статуса задачи
 PRINTER_NAME = "Your_Printer_Name"  # Можно задать конкретный принтер или выбрать из списка доступных
 CONNECTION_RETRY_TIMEOUT = 5
@@ -31,7 +38,7 @@ def get_printers():
 
 def get_mac(delimiter=':'):
     mac_int = uuid.getnode()
-    return delimiter.join(hex(b)[2:] for b in mac_int.to_bytes(6))
+    return delimiter.join(hex(b)[2:] for b in mac_int.to_bytes(6, byteorder='big'))
 
 
 async def reg_station(api_url):
@@ -93,7 +100,7 @@ TASKS_QUEUE = {}
 
 async def main():
     global TASKS_QUEUE
-    log.info('Print Service STARTED')
+    log.info('Print Service STARTED: %s', BASE_DIR)
     try_number = 0
     while True:
         try:
