@@ -183,5 +183,7 @@ def flat_dict(d_in, d_out=None, prefix=''):
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)-15s %(name)-15s %(levelname)-8s %(message)s')
-    asyncio.run(main())
-
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        log.info('SERVICE TERMINATED')
