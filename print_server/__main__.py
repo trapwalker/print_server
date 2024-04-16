@@ -138,7 +138,7 @@ async def main():
 
     async with ClientSession() as session:
         while True:
-            log.debug('Check new tasks to printing...')
+            # log.debug('Check new tasks to printing...')
             jobs = []
             try:
                 data = await fetch_print_tasks(session)
@@ -148,7 +148,8 @@ async def main():
                 log.exception(e)
             else:
                 jobs = data.get('jobs', [])
-                log.info('Tasks %s incoming', len(jobs))
+                if jobs:
+                    log.info('Tasks %s incoming', len(jobs))
 
             for job in jobs:
                 TASKS_QUEUE[job['id']] = job
