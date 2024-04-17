@@ -102,7 +102,11 @@ async def print_file(job, session: ClientSession):
                     printer_name, PRINT_JOB_URL_FORMAT.format(**{**locals(), **globals()}),
                 )
             else:
-                conn.printFile(printer_name, fd.name, f"Print Job #{task_id}", {})
+                conn.printFile(
+                    printer_name, fd.name,
+                    f"Print Job #{task_id}",
+                    {'copies': str(job['copies'])},
+                )
     except Exception as e:
         log.error('ERROR while job processing: %s', str(e))
         await update_task_status(session, task_id, status="COMPLETED_WITH_ERROR", error_message=str(e))
