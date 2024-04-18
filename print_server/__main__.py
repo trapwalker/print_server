@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 from os import getenv
 import tempfile
+import random
 
 log = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ load_dotenv()
 API_URL = TELEGRAM_API_TOKEN = getenv("API_URL", default="http://localhost:8000")
 REG_PRINT_SERVER_URL = f'{API_URL}/reg/'
 PRINT_JOB_URL_FORMAT = '{API_URL}/admin/printer/printjob/{task_id}'
+UID_FILE = Path(getenv("UID_FILE", default='.uid'))
 
 CONNECTION_RETRY_TIMEOUT = 5
 FETCHING_JOBS_TIMEOUT = 5
@@ -38,8 +40,15 @@ def get_printers():
 
 
 def get_mac(delimiter=':'):
-    mac_int = uuid.getnode()
-    return delimiter.join(hex(b)[2:] for b in mac_int.to_bytes(6, byteorder='big'))
+    try:
+        uid = int(UID_FILE.read_text().strip())
+    except Exception:
+        log.info('UID-file not found by %r. Generate new.', UID_FILE)
+        uid = int.from_bytes(random.randbytes(6))
+        UID_FILE.write_text(str(uid))
+
+    mac = uid
+    return delimiter.join(hex(b)[2:].zfill(2) for b in mac.to_bytes(6, byteorder='big'))
 
 
 async def reg_station():
