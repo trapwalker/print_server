@@ -22,7 +22,6 @@ API_URL = TELEGRAM_API_TOKEN = getenv("API_URL", default="http://localhost:8000"
 REG_PRINT_SERVER_URL = f'{API_URL}/reg/'
 PRINT_JOB_URL_FORMAT = '{API_URL}/admin/printer/printjob/{task_id}'
 
-PRINTER_NAME = "Your_Printer_Name"  # Можно задать конкретный принтер или выбрать из списка доступных
 CONNECTION_RETRY_TIMEOUT = 5
 FETCHING_JOBS_TIMEOUT = 5
 MAX_PRINT_WORKERS = 1
