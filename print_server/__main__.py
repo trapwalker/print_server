@@ -45,7 +45,7 @@ def get_mac(delimiter=':'):
         uid = int(UID_FILE.read_text().strip())
     except Exception:
         log.info('UID-file not found by %r. Generate new.', UID_FILE)
-        uid = int.from_bytes(random.randbytes(6))
+        uid = int.from_bytes(random.randbytes(6), byteorder='big')
         UID_FILE.write_text(str(uid))
 
     mac = uid
