@@ -2,17 +2,16 @@ import aiohttp
 import asyncio
 import cups
 import json
-import uuid
 from aiohttp import ClientSession
 from aiohttp.client_exceptions import ServerDisconnectedError, ClientConnectorError
-from concurrent.futures import ThreadPoolExecutor
 import logging
 from dotenv import load_dotenv
 from pathlib import Path
 from os import getenv
 import tempfile
-import random
 import socket
+
+from print_server.tools import get_external_ip, get_mac, flat_dict
 
 log = logging.getLogger(__name__)
 
@@ -34,32 +33,12 @@ DRY_RUN = False
 print_server_id = None
 printers_data = None
 
+
 def get_printers():
     conn = cups.Connection()
     printers = conn.getPrinters()
     return printers
 
-
-def get_mac(delimiter=':'):
-    try:
-        uid = int(UID_FILE.read_text().strip())
-    except Exception:
-        log.info('UID-file not found by %r. Generate new.', UID_FILE)
-        uid = int.from_bytes(random.randbytes(6), byteorder='big')
-        UID_FILE.write_text(str(uid))
-
-    mac = uid
-    return delimiter.join(hex(b)[2:].zfill(2) for b in mac.to_bytes(6, byteorder='big'))
-
-
-def get_external_ip():
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-        try:
-            s.connect(('8.8.8.8', 80))
-            ip = s.getsockname()[0]
-        except Exception:
-            ip = '<UNKNOWN>'
-    return ip
 
 async def reg_station():
     global print_server_id, printers_data
@@ -125,13 +104,13 @@ async def print_file(job, session: ClientSession):
                 while chunk := await response.content.read(1024):
                     fd.write(chunk)
             fd.seek(0)
-            conn = cups.Connection()
             if DRY_RUN:
                 log.info(
                     'PRINTING SUPPRESSED on %s: %s',
                     printer_name, PRINT_JOB_URL_FORMAT.format(**{**locals(), **globals()}),
                 )
             else:
+                conn = cups.Connection()
                 conn.printFile(
                     printer_name, fd.name,
                     f"Print Job #{task_id}",
@@ -142,12 +121,6 @@ async def print_file(job, session: ClientSession):
         await update_task_status(session, task_id, status="COMPLETED_WITH_ERROR", error_message=str(e))
     else:
         await update_task_status(session, task_id, status="COMPLETED_SUCCESSFULLY")
-
-
-async def async_print_file(job, session: ClientSession):
-    loop = asyncio.get_event_loop()
-    with ThreadPoolExecutor(max_workers=MAX_PRINT_WORKERS) as pool:
-        await loop.run_in_executor(pool, print_file, job, session)
 
 
 TASKS_QUEUE = {}
@@ -200,20 +173,6 @@ async def main():
                 await print_file(job, session)
 
             await asyncio.sleep(FETCHING_JOBS_TIMEOUT)
-
-
-def flat_dict(d_in, d_out=None, prefix=''):
-    d_out = d_out or {}
-    for k, v in d_in.items():
-        if isinstance(v, dict):
-            try:
-                flat_dict(v, d_out, prefix=f'{prefix}{k}.')
-            except:
-                pass
-            else:
-                continue
-        d_out[f'{prefix}{k}'] = v
-    return d_out
 
 
 if __name__ == '__main__':
