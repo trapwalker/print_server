@@ -12,6 +12,7 @@ from pathlib import Path
 from os import getenv
 import tempfile
 import random
+import socket
 
 log = logging.getLogger(__name__)
 
@@ -51,11 +52,27 @@ def get_mac(delimiter=':'):
     return delimiter.join(hex(b)[2:].zfill(2) for b in mac.to_bytes(6, byteorder='big'))
 
 
+def get_external_ip():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        try:
+            s.connect(('8.8.8.8', 80))
+            ip = s.getsockname()[0]
+        except Exception:
+            ip = '<UNKNOWN>'
+    return ip
+
 async def reg_station():
     global print_server_id, printers_data
     mac_address = get_mac()
+    try:
+        hostname = socket.gethostname()
+    except:
+        hostname = '<UNKNOWN>'
+
+    ip = get_external_ip()
+
     printers_data = get_printers()
-    log.info('Mac-address: %s', mac_address)
+    log.info('Register %r (uid=%s, ip=%s)', hostname, mac_address, ip)
     log.info('Printers %s found: %s', len(printers_data), ', '.join(printers_data.keys() or '...'))
     for name, info in printers_data.items():
         k_w = info and max(map(len, info.keys())) or 0
@@ -65,7 +82,12 @@ async def reg_station():
 
     async with aiohttp.ClientSession() as session:
         headers = {'Content-Type': 'application/json'}
-        payload = json.dumps({'mac_address': mac_address, 'printers_data': printers_data,})
+        payload = json.dumps({
+            'mac_address': mac_address,
+            'hostname': hostname,
+            'ip': ip,
+            'printers_data': printers_data,
+        })
         async with session.post(REG_PRINT_SERVER_URL, data=payload, headers=headers) as response:
             log_func = log.info if response.status == 200 else log.error
             log_func('CALL POST %s: %s', REG_PRINT_SERVER_URL, response.status)
