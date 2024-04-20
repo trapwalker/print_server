@@ -9,6 +9,9 @@ venv:
 install_deps:
 	$(VENV_NAME)/bin/pip install -e .
 
+install_deps_dev: install_deps
+	$(VENV_NAME)/bin/pip install -r dev-requirements.txt
+
 build:
 	$(VENV_PATH)/pyinstaller --onefile --name $(APP_NAME) $(ENTRY_POINT)
 
