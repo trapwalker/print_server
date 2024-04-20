@@ -3,6 +3,9 @@ ENTRY_POINT=print_server/__main__.py
 VENV_NAME=venv
 VENV_PATH=./$(VENV_NAME)/bin
 
+run:
+	$(VENV_NAME)/bin/python -m print_server
+
 venv:
 	python -m venv $(VENV_NAME)
 
