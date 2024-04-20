@@ -1,7 +1,11 @@
 import random
 import socket
+import logging
 
-from print_server.__main__ import UID_FILE, log
+from print_server import config
+
+
+log = logging.getLogger(__name__)
 
 
 def get_external_ip():
@@ -16,11 +20,11 @@ def get_external_ip():
 
 def get_mac(delimiter=':'):
     try:
-        uid = int(UID_FILE.read_text().strip())
+        uid = int(config.UID_FILE.read_text().strip())
     except Exception:
-        log.info('UID-file not found by %r. Generate new.', UID_FILE)
+        log.info('UID-file not found by %r. Generate new.', config.UID_FILE)
         uid = int.from_bytes(random.randbytes(6), byteorder='big')
-        UID_FILE.write_text(str(uid))
+        config.UID_FILE.write_text(str(uid))
 
     mac = uid
     return delimiter.join(hex(b)[2:].zfill(2) for b in mac.to_bytes(6, byteorder='big'))
