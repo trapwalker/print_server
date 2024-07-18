@@ -11,6 +11,8 @@ setup(
         # "pyjwt==2.8.0",
         # "pytz==2024.1",
         # "sentry-sdk==1.41.0",
+        "loguru",
+        "platformdirs",
     ],
 
     author='Sergey Pankov',
