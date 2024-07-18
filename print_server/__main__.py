@@ -4,15 +4,19 @@ import cups
 import json
 from aiohttp import ClientSession
 from aiohttp.client_exceptions import ServerDisconnectedError, ClientConnectorError
-import logging
 import tempfile
 import socket
+from loguru import logger as log
+import sys
+from pathlib import Path
+from platformdirs import user_log_dir
 
 from print_server import config
 from print_server.tools import get_external_ip, get_mac, flat_dict
 
-log = logging.getLogger(__name__)
 
+PROD_LOG_DIR = Path(user_log_dir(appname='print_server'))
+LOG_DIR = Path('log') if Path('log').is_dir() else PROD_LOG_DIR
 
 print_server_id = None
 printers_data = None
@@ -35,11 +39,11 @@ async def reg_station():
     ip = get_external_ip()
 
     printers_data = get_printers()
-    log.info('Register %r (uid=%s, ip=%s)', hostname, mac_address, ip)
-    log.info('Printers %s found: %s', len(printers_data), ', '.join(printers_data.keys() or '...'))
+    log.info('Register {!r} (uid={}, ip={})', hostname, mac_address, ip)
+    log.info('Printers {} found: {}', len(printers_data), ', '.join(printers_data.keys() or '...'))
     for name, info in printers_data.items():
         k_w = info and max(map(len, info.keys())) or 0
-        log.debug('\t- %s:', name)
+        log.debug('\t- {}:', name)
         for k, v in info.items():
             log.debug(f'\t\t{k:{k_w}}: {v}')
 
@@ -53,7 +57,7 @@ async def reg_station():
         })
         async with session.post(config.REG_PRINT_SERVER_URL, data=payload, headers=headers) as response:
             log_func = log.info if response.status == 200 else log.error
-            log_func('CALL POST %s: %s', config.REG_PRINT_SERVER_URL, response.status)
+            log_func(f'CALL POST {config.REG_PRINT_SERVER_URL}: {response.status}')
             answer = await response.json()
             print_server_id = answer.get('print_server_id')
             return answer
@@ -68,12 +72,14 @@ async def fetch_print_tasks(session: ClientSession):
 
 async def update_task_status(session: ClientSession, task_id, status, error_message=None):
     payload = {"task_id": task_id, "status": status, 'error_message': error_message}
-    log.info('Update task #%s sratus to %s', task_id, status)
+    log.info('Update task #{} sratus to {}...', task_id, status)
     try:
         async with session.post(f'{config.API_URL}/job/{task_id}/update', json=payload) as response:
-            return await response.json()
+            result = await response.json()
+            log.info('Task #{} sratus updating to {} result: {}', task_id, status, result)
+            return result
     except Exception as e:
-        log.error("Can't update status of task #%s to %s.%s", task_id, status, f' ({error_message})')
+        log.error("Can't update status of task #{} to {}.{}: {}", task_id, status, f' ({error_message})', e)
 
 
 async def print_file(job, session: ClientSession):
@@ -90,7 +96,7 @@ async def print_file(job, session: ClientSession):
             fd.seek(0)
             if config.DRY_RUN:
                 log.info(
-                    'PRINTING SUPPRESSED on %s: %s',
+                    'PRINTING SUPPRESSED on {}: {}',
                     printer_name, config.PRINT_JOB_URL_FORMAT.format(**{**locals(), **globals()}),
                 )
             else:
@@ -101,7 +107,7 @@ async def print_file(job, session: ClientSession):
                     {'copies': str(job['copies'])},
                 )
     except Exception as e:
-        log.error('ERROR while job processing: %s', str(e))
+        log.error('ERROR while job processing: {}', str(e))
         await update_task_status(session, task_id, status="COMPLETED_WITH_ERROR", error_message=str(e))
     else:
         await update_task_status(session, task_id, status="COMPLETED_SUCCESSFULLY")
@@ -112,14 +118,14 @@ TASKS_QUEUE = {}
 
 async def main():
     global TASKS_QUEUE
-    log.info('Print Service STARTED: %s', config.BASE_DIR)
+    log.info('Print Service STARTED: {}', config.BASE_DIR)
     try_number = 0
     while True:
         try:
-            log.info('Try to register on %s... %s', config.API_URL, try_number)
+            log.info('Try to register on {}... {}', config.API_URL, try_number)
             await reg_station()
         except ClientConnectorError as e:
-            log.error('Connection errror: %s', e)
+            log.error('Connection errror: {}', e)
         except Exception as e:
             log.exception(e)
         else:
@@ -134,13 +140,13 @@ async def main():
             try:
                 data = await fetch_print_tasks(session)
             except (ServerDisconnectedError, ClientConnectorError) as e:
-                log.error('API server unavailable (%s): %s', config.API_URL, e)
+                log.error('API server unavailable ({}): {}', config.API_URL, e)
             except Exception as e:
                 log.exception(e)
             else:
                 jobs = data.get('jobs', [])
                 if jobs:
-                    log.info('Tasks %s incoming', len(jobs))
+                    log.info('Tasks {} incoming', len(jobs))
 
             for job in jobs:
                 TASKS_QUEUE[job['id']] = job
@@ -148,11 +154,10 @@ async def main():
             while TASKS_QUEUE:
                 _, current_job = TASKS_QUEUE.popitem()
                 log.debug(
-                    'Task #%(id)s (%(status)s) '
-                    'to print %(copies)s copies of '
-                    '%(file.name)r (%(file.url)s) '
-                    'on %(printer)r',
-                    flat_dict(job),
+                    f'Task #{job["id"]} ({job["status"]}) '
+                    f'to print {job["copies"]} copies of '
+                    f'{job["file"]["name"]} ({job["file"]["url"]}) '
+                    f'on {job["printer"]}',
                 )
                 await print_file(job, session)
 
@@ -160,7 +165,19 @@ async def main():
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)-15s %(name)-15s %(levelname)-8s %(message)s')
+    log.configure(
+        handlers=[
+            dict(
+                sink=sys.stdout, colorize=True,
+                format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> <level>{message}</level>"
+            ),
+            dict(
+                sink=LOG_DIR / "error.log", backtrace=True, diagnose=True, level="ERROR",
+                rotation="00:00", retention=10,
+            ),
+            dict(sink=LOG_DIR / "all.log", rotation="00:00", retention=10),
+        ],
+    )
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
