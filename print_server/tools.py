@@ -1,11 +1,8 @@
 import random
 import socket
-import logging
+from loguru import logger as log
 
 from print_server import config
-
-
-log = logging.getLogger(__name__)
 
 
 def get_external_ip():
