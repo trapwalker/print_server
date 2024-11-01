@@ -101,7 +101,10 @@ async def print_file(job, session: ClientSession):
                 )
             else:
                 conn = cups.Connection()
-                conn.enablePrinter(printer_name)
+                try:
+                    conn.enablePrinter(printer_name)
+                except Exception as e:
+                    log.exception(f'Error while "enable printer" act: {e}')
                 conn.printFile(
                     printer_name, fd.name,
                     f"Print Job #{task_id}",
