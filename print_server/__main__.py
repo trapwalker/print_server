@@ -79,7 +79,7 @@ async def update_task_status(session: ClientSession, task_id, status, error_mess
             log.info('Task #{} sratus updating to {} result: {}', task_id, status, result)
             return result
     except Exception as e:
-        log.error("Can't update status of task #{} to {}.{}: {}", task_id, status, f' ({error_message})', e)
+        log.exception(f"Can't update status of task #{task_id} to {status}: {error_message} \\ {type(e)}: {e}")
 
 
 async def print_file(job, session: ClientSession):
@@ -104,7 +104,9 @@ async def print_file(job, session: ClientSession):
                 try:
                     conn.enablePrinter(printer_name)
                 except Exception as e:
-                    log.exception(f'Error while "enable printer" act: {e}')
+                    log.error(f'Error while "enable printer" act: {type(e)} - {e}')
+                else:
+                    log.debug(f'conn.enablePrinter({printer_name}) - SUCCESS')
                 conn.printFile(
                     printer_name, fd.name,
                     f"Print Job #{task_id}",
